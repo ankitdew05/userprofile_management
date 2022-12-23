@@ -4,55 +4,89 @@ const router = express.Router();
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
-router.get(`/`, async (req, res) => {
-  const userList = await User.find();
-
-  if (!userList) {
-    res.status(500).json({ success: false });
-  }
-  res.send(userList);
-});
-
-router.put("/:id", async (req, res) => {
-  const userExist = await User.findById(req.params.id);
-  let newPassword;
-  if (req.body.password) {
-    newPassword = bcrypt.hashSync(req.body.password, 10);
-  } else {
-    newPassword = userExist.passwordHash;
-  }
-
+//One filed is given
+router.put("updateOneField/:id", async (req, res) => {
   const user = await User.findByIdAndUpdate(
     req.params.id,
     {
       firstName: req.body.firstName,
-      middleName: req.body.middleName,
-      lastName: req.body.lastName,
-      email: req.body.email,
-      passwordHash: newPassword,
-      isAdmin: req.body.isAdmin,
-      department: req.body.department,
+      updatedTime: Date.now(),
     },
     { new: true }
   );
 
-  if (!user) return res.status(400).send("the user cannot be created!");
+  if (!user) return res.status(400).send("the user cannot be updated!");
 
   res.send(user);
 });
 
-router.get("/:id", async (req, res) => {
+//Update many field
+
+router.put("updateManyfield/:id/:isAdmin", async (req, res) => {
+  if (req.params.isAdmin == "true") {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        firstName: req.body.firstName,
+        middleName: req.body.middleName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        department: req.body.department,
+        updatedTime: Date.now(),
+      },
+      { new: true }
+    );
+
+    if (!user) return res.status(400).send("the user cannot be updated!");
+
+    res.send(user);
+  } else {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      {
+        firstName: req.body.firstName,
+        middleName: req.body.middleName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        department: req.body.department,
+        updatedTime: Date.now(),
+      },
+      { new: true }
+    );
+
+    if (!user) return res.status(400).send("the user cannot be updated!");
+
+    res.send(user);
+  }
+});
+
+router.get("/views/:isAdmin", async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select("-passwordHash");
+    if (req.params.isAdmin == true) {
+      const user = await User.find({ isAdmin: "true" }).select("-passwordHash");
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "user not found",
-      });
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "user not found",
+        });
+      }
+
+      res.status(200).send(user);
+    } else {
+      const user = await User.find({ isAdmin: "false" }).select(
+        "-passwordHash"
+      );
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "user not found",
+        });
+      }
+
+      res.status(200).send(user);
     }
-
-    res.status(200).send(user);
   } catch (err) {
     return res.status(400).json({
       success: false,
@@ -62,36 +96,39 @@ router.get("/:id", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
-  var val = Math.floor(1000 + Math.random() * 9000);
-  let user = new User({
-    name: req.body.name,
-    email: req.body.email,
-    passwordHash: bcrypt.hashSync(req.body.password, 10),
-    phone: req.body.phone,
-    isAdmin: req.body.isAdmin,
-    street: req.body.street,
-    apartment: req.body.apartment,
-    zip: req.body.zip,
-    city: req.body.city,
-    code: Math.floor(1000 + Math.random() * 9000),
-    country: req.body.country,
-  });
-  user = await user.save();
-  client.messages
-    .create({
-      body: `Your Klemo Verification Code is ${val} `,
-      from: "+17174838826",
-      to: req.body.phone,
-    })
-    .then((message) => {
-      console.log(message);
-    })
-    .catch((err) => {
-      console.log(err);
+router.get("/views/:fieldname/:isAdmin", async (req, res) => {
+  const fieldname = req.params.fieldname;
+  try {
+    if (req.params.isAdmin == "true") {
+      const user = await User.find({ isAdmin: "true" }).select(fieldname);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "user not found",
+        });
+      }
+
+      res.status(200).send(user);
+    } else {
+      const user = await User.find({ isAdmin: "false" }).select(fieldname);
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "user not found",
+        });
+      }
+
+      res.status(200).send(user);
+    }
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      message: "error",
+      error: err,
     });
-  if (!user) return res.status(400).send("the user cannot be created!");
-  res.send(user);
+  }
 });
 
 router.post("/login", async (req, res) => {
@@ -136,33 +173,93 @@ router.delete("/:id", (req, res) => {
     });
 });
 
-router.get(`/get/count`, async (req, res) => {
-  const userCount = await User.count();
+router.post("/register", async (req, res) => {
+  try {
+    const password = req.body.password;
+    console.log(password.length);
+    if (
+      password == req.body.currentpassword &&
+      password.length > 6 &&
+      password.length < 12
+    ) {
+      let user = new User({
+        firstName: req.body.firstName,
+        middleName: req.body.middleName,
+        lastName: req.body.lastName,
+        email: req.body.email,
+        passwordHash: bcrypt.hashSync(req.body.password, 10),
+        isAdmin: req.body.isAdmin,
+        department: req.body.department,
+      });
+      user = await user.save();
 
-  if (!userCount) {
-    res.status(500).json({ success: false });
+      if (!user) return res.status(400).send("the user cannot be created!");
+
+      res.send(user);
+    } else {
+      return res.status(400).send("the user cannot be created!");
+    }
+  } catch (error) {
+    console.log(error);
   }
-  res.send({
-    userCount: userCount,
-  });
 });
 
-router.post("/register", async (req, res) => {
-    var val = Math.floor(1000 + Math.random() * 9000);
-  let user = new User({
-    firstName: req.body.firstName,
-    middleName: req.body.middleName,
-    lastName: req.body.lastName,
-    email: req.body.email,
-    passwordHash: bcrypt.hashSync(req.body.password, 10),
-    isAdmin: req.body.isAdmin,
-    department: req.body.department,
-  });
-  user = await user.save();
+router.post("/add", async (req, res) => {
+  try {
+    if (req.body.isAdmin == "true") {
+      const password = req.body.password;
+      console.log(password.length);
+      if (
+        password == req.body.currentpassword &&
+        password.length > 6 &&
+        password.length < 12
+      ) {
+        let user = new User({
+          firstName: req.body.firstName,
+          middleName: req.body.middleName,
+          lastName: req.body.lastName,
+          email: req.body.email,
+          passwordHash: bcrypt.hashSync(req.body.password, 10),
+          isAdmin: "true",
+          department: req.body.department,
+        });
+        user = await user.save();
 
-  if (!user) return res.status(400).send("the user cannot be created!");
+        if (!user) return res.status(400).send("the user cannot be created!");
 
-  res.send(user);
+        res.send(user);
+      } else {
+        return res.status(400).send("the user cannot be created!");
+      }
+    } else {
+      const password = req.body.password;
+      console.log(password.length);
+      if (
+        password == req.body.currentpassword &&
+        password.length > 6 &&
+        password.length < 12
+      ) {
+        let user = new User({
+          firstName: req.body.firstName,
+          middleName: req.body.middleName,
+          lastName: req.body.lastName,
+          email: req.body.email,
+          passwordHash: bcrypt.hashSync(req.body.password, 10),
+          isAdmin: "false",
+          department: req.body.department,
+        });
+        user = await user.save();
+
+        if (!user) return res.status(400).send("the user cannot be created!");
+
+        res.send(user);
+      } else {
+        return res.status(400).send("the user cannot be created!");
+      }
+    }
+  } catch (error) {
+    console.log(error);
+  }
 });
 
 module.exports = router;
